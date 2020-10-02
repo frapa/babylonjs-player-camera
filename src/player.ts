@@ -15,7 +15,7 @@ const GRAVITY = -10;
 
 export interface CameraControlsKeys {
   forward: string | Array<string>;
-  backwards: string | Array<string>;
+  backward: string | Array<string>;
   left: string | Array<string>;
   right: string | Array<string>;
   jump: string | Array<string>;
@@ -71,15 +71,18 @@ export class Player {
     const mesh = MeshBuilder.CreateBox(
       'player',
       {
-        width: options.ellipsoid?.x || 1,
-        height: options.ellipsoid?.y || 1,
-        depth: options.ellipsoid?.z || 1,
+        width: (options.ellipsoid && options.ellipsoid.x) || 1,
+        height: (options.ellipsoid && options.ellipsoid.y) || 1,
+        depth: (options.ellipsoid && options.ellipsoid.z) || 1,
       },
       scene
     );
 
     mesh.material = new StandardMaterial('player', scene);
-    mesh.position = options.position || new Vector3(0, 1, 0);
+    mesh.position =
+      options.position ||
+      (options.camera && options.camera.position) ||
+      new Vector3(0, 1, 0);
     mesh.ellipsoid = options.ellipsoid || new Vector3(0.5, 0.5, 0.5);
     mesh.checkCollisions = true;
 
@@ -88,13 +91,13 @@ export class Player {
 
   private createCamera(scene: Scene): TargetCamera {
     const camera = new UniversalCamera('camera', new Vector3(0, 2, -5), scene);
-    camera.parent = this.mesh;
     camera.rotation = new Vector3(0.2, 0, 0);
 
     return camera;
   }
 
   private configureInputs(options: PlayerOptions = {}) {
+    this.camera.parent = this.mesh;
     this.camera.inputs.clear();
     this.camera.inputs.add(new PlayerCameraInput(this, options.controlKeys));
     this.camera.attachControl(document.getElementsByTagName('canvas')[0]);
@@ -102,19 +105,58 @@ export class Player {
 
   direction(): Vector3 {
     return Vector3.Forward().rotateByQuaternionToRef(
-      this.mesh!.rotation.toQuaternion(),
+      this.mesh.rotation.toQuaternion(),
       Vector3.Zero()
     );
   }
 
   touching(): boolean {
-    const ray = new Ray(this.mesh!.position, Vector3.Down(), 0.51);
-    const pick = this.scene!.pickWithRay(
-      ray,
-      (mesh) => mesh.checkCollisions && mesh !== this.mesh,
-      true
+    const vecs = [
+      Vector3.Down(),
+      Vector3.Down().rotateByQuaternionToRef(
+        new Vector3(0.25, 0, 0).toQuaternion(),
+        Vector3.Zero()
+      ),
+      Vector3.Down().rotateByQuaternionToRef(
+        new Vector3(0.25, Math.PI / 3, 0).toQuaternion(),
+        Vector3.Zero()
+      ),
+      Vector3.Down().rotateByQuaternionToRef(
+        new Vector3(0.25, (2 * Math.PI) / 3, 0).toQuaternion(),
+        Vector3.Zero()
+      ),
+      Vector3.Down().rotateByQuaternionToRef(
+        new Vector3(0.25, Math.PI, 0).toQuaternion(),
+        Vector3.Zero()
+      ),
+      Vector3.Down().rotateByQuaternionToRef(
+        new Vector3(0.25, (4 * Math.PI) / 3, 0).toQuaternion(),
+        Vector3.Zero()
+      ),
+      Vector3.Down().rotateByQuaternionToRef(
+        new Vector3(0.25, (5 * Math.PI) / 3, 0).toQuaternion(),
+        Vector3.Zero()
+      ),
+    ];
+    const rays = vecs.map(
+      (vec) =>
+        new Ray(
+          this.mesh!.position,
+          vec,
+          this.mesh.getBoundingInfo().boundingSphere.radius
+        )
     );
-    return pick?.hit || false;
+    let picks = 0;
+    for (const ray of rays) {
+      const pick = this.scene!.pickWithRay(
+        ray,
+        (mesh) => mesh.checkCollisions && mesh !== this.mesh,
+        true
+      );
+      picks += (pick && pick.hit && 1) || 0;
+    }
+    console.log(picks);
+    return picks >= 3;
   }
 
   move(displacement: Vector3) {
@@ -187,7 +229,7 @@ class PlayerCameraInput implements ICameraInput<TargetCamera> {
     if (!this.controlKeys) {
       this.controlKeys = {
         forward: ['ArrowUp', 'w'],
-        backwards: ['ArrowDown', 's'],
+        backward: ['ArrowDown', 's'],
         left: ['ArrowLeft', 'a'],
         right: ['ArrowRight', 'd'],
         jump: [' '],
@@ -199,8 +241,8 @@ class PlayerCameraInput implements ICameraInput<TargetCamera> {
       this.controlKeys.forward = [<string>this.controlKeys.forward];
     }
 
-    if (this.controlKeys.backwards instanceof String) {
-      this.controlKeys.backwards = [<string>this.controlKeys.backwards];
+    if (this.controlKeys.backward instanceof String) {
+      this.controlKeys.backward = [<string>this.controlKeys.backward];
     }
 
     if (this.controlKeys.left instanceof String) {
@@ -239,11 +281,11 @@ class PlayerCameraInput implements ICameraInput<TargetCamera> {
   }
 
   private onKeyDown(event: KeyboardEvent) {
-    const { forward, backwards, left, right, jump } = this.controlKeys!;
+    const { forward, backward, left, right, jump } = this.controlKeys!;
 
     if (forward.includes(event.key)) {
       this.player.go(MovementDirection.FORWARD);
-    } else if (backwards.includes(event.key)) {
+    } else if (backward.includes(event.key)) {
       this.player.go(MovementDirection.BACKWARDS);
     } else if (left.includes(event.key)) {
       this.player.turn(RotationDirection.LEFT);
@@ -255,9 +297,9 @@ class PlayerCameraInput implements ICameraInput<TargetCamera> {
   }
 
   private onKeyUp(event: KeyboardEvent) {
-    const { forward, backwards, left, right } = this.controlKeys!;
+    const { forward, backward, left, right } = this.controlKeys!;
 
-    if (forward.includes(event.key) || backwards.includes(event.key)) {
+    if (forward.includes(event.key) || backward.includes(event.key)) {
       this.player.go(MovementDirection.NONE);
     } else if (left.includes(event.key) || right.includes(event.key)) {
       this.player.turn(RotationDirection.NONE);
