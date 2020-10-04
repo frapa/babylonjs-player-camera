@@ -21,6 +21,12 @@ export interface CameraControlsKeys {
   jump: string | Array<string>;
 }
 
+export interface CameraCallbacks {
+  onMove?: Function;
+  onTurn?: Function;
+  onJump?: Function;
+}
+
 export interface PlayerOptions {
   mesh?: Mesh;
   position?: Vector3;
@@ -28,6 +34,7 @@ export interface PlayerOptions {
   gravity?: number;
   camera?: TargetCamera;
   controlKeys?: CameraControlsKeys;
+  callbacks?: CameraCallbacks;
 }
 
 export enum MovementDirection {
@@ -57,6 +64,8 @@ export class Player {
   private angular_velocity = 0;
   private readonly gravity: number;
 
+  private readonly callbacks?: CameraCallbacks;
+
   constructor(scene: Scene, options: PlayerOptions = {}) {
     this.scene = scene;
 
@@ -65,6 +74,8 @@ export class Player {
     this.configureInputs();
 
     this.gravity = options.gravity || GRAVITY;
+
+    this.callbacks = options.callbacks;
   }
 
   private createPlayerMesh(scene: Scene, options: PlayerOptions = {}): Mesh {
@@ -173,6 +184,10 @@ export class Player {
 
   go(direction: MovementDirection) {
     this.velocity = direction * this.speed;
+
+    if (this.callbacks && this.callbacks.onMove) {
+      this.callbacks.onMove(direction);
+    }
   }
 
   rotate(angle: number) {
@@ -181,11 +196,19 @@ export class Player {
 
   turn(direction: RotationDirection) {
     this.angular_velocity = direction * this.rotation_speed;
+
+    if (this.callbacks && this.callbacks.onTurn) {
+      this.callbacks.onTurn(direction);
+    }
   }
 
   jump() {
     if (this.touching()) {
       this.vertical_velocity += this.jump_speed;
+
+      if (this.callbacks && this.callbacks.onJump) {
+        this.callbacks.onJump();
+      }
     }
   }
 
