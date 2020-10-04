@@ -1,0 +1,8 @@
+tsconfig.json
+tsconfig.module.json
+src
+.github
+.gitignore
+.eslintrc.json
+.prettierignore
+*tsbuildinfo
