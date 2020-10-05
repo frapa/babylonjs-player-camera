@@ -8,18 +8,47 @@ import {
   StandardMaterial,
   TargetCamera,
   UniversalCamera,
+  Vector2,
   Vector3,
 } from '@babylonjs/core';
 
 const GRAVITY = -10;
 
-export interface CameraControlsKeys {
-  forward: string | Array<string>;
-  backward: string | Array<string>;
-  left: string | Array<string>;
-  right: string | Array<string>;
-  jump: string | Array<string>;
+export interface CameraControls {
+  moveForwardKeys?: string | Array<string>;
+  moveBackwardKeys?: string | Array<string>;
+  moveLeftKeys?: string | Array<string>;
+  moveRightKeys?: string | Array<string>;
+  turnLeftKeys?: string | Array<string>;
+  turnRightKeys?: string | Array<string>;
+  jumpKeys?: string | Array<string>;
 }
+
+const EMPTY_CONTROLS = {
+  moveForwardKeys: [],
+  moveBackwardKeys: [],
+  moveLeftKeys: [],
+  moveRightKeys: [],
+  turnLeftKeys: [],
+  turnRightKeys: [],
+  jumpKeys: [],
+};
+
+export const FPS_CONTROLS = {
+  moveForwardKeys: ['ArrowUp', 'w'],
+  moveBackwardKeys: ['ArrowDown', 's'],
+  moveLeftKeys: ['ArrowLeft', 'a'],
+  moveRightKeys: ['ArrowRight', 'd'],
+  jumpKeys: [' '],
+};
+
+export const RACE_CONTROLS = {
+  moveForwardKeys: ['ArrowUp', 'w'],
+  moveBackwardKeys: ['ArrowDown', 's'],
+  turnLeftKeys: ['ArrowLeft', 'a'],
+  turnRightKeys: ['ArrowRight', 'd'],
+  jumpKeys: [' '],
+};
 
 export interface CameraCallbacks {
   onMove?: Function;
@@ -33,14 +62,20 @@ export interface PlayerOptions {
   ellipsoid?: Vector3;
   gravity?: number;
   camera?: TargetCamera;
-  controlKeys?: CameraControlsKeys;
+  controls?: CameraControls;
   callbacks?: CameraCallbacks;
 }
 
-export enum MovementDirection {
+export enum ForwardMovementDirection {
   NONE = 0,
   FORWARD = 1,
   BACKWARDS = -1,
+}
+
+export enum SidewiseMovementDirection {
+  NONE = 0,
+  LEFT = 1,
+  RIGHT = -1,
 }
 
 export enum RotationDirection {
@@ -59,7 +94,7 @@ export class Player {
   jump_speed = 5;
 
   private last?: Date;
-  private velocity = 0;
+  private planar_velocity = Vector2.Zero();
   private vertical_velocity = 0;
   private angular_velocity = 0;
   private readonly gravity: number;
@@ -110,7 +145,7 @@ export class Player {
   private configureInputs(options: PlayerOptions = {}) {
     this.camera.parent = this.mesh;
     this.camera.inputs.clear();
-    this.camera.inputs.add(new PlayerCameraInput(this, options.controlKeys));
+    this.camera.inputs.add(new PlayerCameraInput(this, options.controls));
     this.camera.attachControl(document.getElementsByTagName('canvas')[0]);
   }
 
@@ -119,6 +154,10 @@ export class Player {
       this.mesh.rotation.toQuaternion(),
       Vector3.Zero()
     );
+  }
+
+  sideDirection(): Vector3 {
+    return this.direction().cross(Vector3.Up());
   }
 
   touching(): boolean {
@@ -178,12 +217,32 @@ export class Player {
     this.move(this.direction().scale(displacement));
   }
 
+  moveSidewise(displacement: number) {
+    this.move(this.sideDirection().scale(displacement));
+  }
+
+  moveOriented(displacement: Vector2) {
+    this.move(
+      this.direction()
+        .scale(displacement.x)
+        .add(this.sideDirection().scale(displacement.y))
+    );
+  }
+
   moveUp(displacement: number) {
     this.move(Vector3.Up().scale(displacement));
   }
 
-  go(direction: MovementDirection) {
-    this.velocity = direction * this.speed;
+  goForward(direction: ForwardMovementDirection) {
+    this.planar_velocity.x = direction * this.speed;
+
+    if (this.callbacks && this.callbacks.onMove) {
+      this.callbacks.onMove(direction);
+    }
+  }
+
+  goSidewise(direction: SidewiseMovementDirection) {
+    this.planar_velocity.y = direction * this.speed;
 
     if (this.callbacks && this.callbacks.onMove) {
       this.callbacks.onMove(direction);
@@ -225,7 +284,7 @@ export class Player {
       // @ts-ignore
       const elapsed = (now - this.last) / 1000;
 
-      this.moveForward(this.velocity * elapsed);
+      this.moveOriented(this.planar_velocity.scale(elapsed));
       this.moveUp(this.vertical_velocity * elapsed);
       this.rotate(this.angular_velocity * elapsed);
 
@@ -240,44 +299,47 @@ class PlayerCameraInput implements ICameraInput<TargetCamera> {
   camera: Camera;
   player: Player;
 
-  private controlKeys?: CameraControlsKeys;
+  private controls?: CameraControls;
 
-  constructor(player: Player, controlKeys?: CameraControlsKeys) {
+  constructor(player: Player, controls?: CameraControls) {
     this.player = player;
-    this.controlKeys = controlKeys;
+    this.controls = controls;
     this.normalizeControlKeys();
   }
 
   private normalizeControlKeys() {
-    if (!this.controlKeys) {
-      this.controlKeys = {
-        forward: ['ArrowUp', 'w'],
-        backward: ['ArrowDown', 's'],
-        left: ['ArrowLeft', 'a'],
-        right: ['ArrowRight', 'd'],
-        jump: [' '],
-      };
-      return;
+    if (!this.controls) {
+      this.controls = FPS_CONTROLS;
     }
 
-    if (this.controlKeys.forward instanceof String) {
-      this.controlKeys.forward = [<string>this.controlKeys.forward];
+    this.controls = { ...EMPTY_CONTROLS, ...this.controls };
+
+    if (this.controls.moveForwardKeys instanceof String) {
+      this.controls.moveForwardKeys = [<string>this.controls.moveForwardKeys];
     }
 
-    if (this.controlKeys.backward instanceof String) {
-      this.controlKeys.backward = [<string>this.controlKeys.backward];
+    if (this.controls.moveBackwardKeys instanceof String) {
+      this.controls.moveBackwardKeys = [<string>this.controls.moveBackwardKeys];
     }
 
-    if (this.controlKeys.left instanceof String) {
-      this.controlKeys.left = [<string>this.controlKeys.left];
+    if (this.controls.moveLeftKeys instanceof String) {
+      this.controls.moveLeftKeys = [<string>this.controls.moveLeftKeys];
     }
 
-    if (this.controlKeys.right instanceof String) {
-      this.controlKeys.right = [<string>this.controlKeys.right];
+    if (this.controls.moveRightKeys instanceof String) {
+      this.controls.moveRightKeys = [<string>this.controls.moveRightKeys];
     }
 
-    if (this.controlKeys.jump instanceof String) {
-      this.controlKeys.jump = [<string>this.controlKeys.jump];
+    if (this.controls.turnLeftKeys instanceof String) {
+      this.controls.turnLeftKeys = [<string>this.controls.turnLeftKeys];
+    }
+
+    if (this.controls.turnRightKeys instanceof String) {
+      this.controls.turnRightKeys = [<string>this.controls.turnRightKeys];
+    }
+
+    if (this.controls.jumpKeys instanceof String) {
+      this.controls.jumpKeys = [<string>this.controls.jumpKeys];
     }
   }
 
@@ -304,15 +366,28 @@ class PlayerCameraInput implements ICameraInput<TargetCamera> {
   }
 
   private onKeyDown(event: KeyboardEvent) {
-    const { forward, backward, left, right, jump } = this.controlKeys!;
+    const {
+      moveForwardKeys: moveForward,
+      moveBackwardKeys: moveBackward,
+      moveLeftKeys: moveLeft,
+      moveRightKeys: moveRight,
+      turnLeftKeys: turnLeft,
+      turnRightKeys: turnRight,
+      jumpKeys: jump,
+    } = this.controls;
 
-    if (forward.includes(event.key)) {
-      this.player.go(MovementDirection.FORWARD);
-    } else if (backward.includes(event.key)) {
-      this.player.go(MovementDirection.BACKWARDS);
-    } else if (left.includes(event.key)) {
+    console.log(moveForward, this.controls);
+    if (moveForward.includes(event.key)) {
+      this.player.goForward(ForwardMovementDirection.FORWARD);
+    } else if (moveBackward.includes(event.key)) {
+      this.player.goForward(ForwardMovementDirection.BACKWARDS);
+    } else if (moveLeft.includes(event.key)) {
+      this.player.goSidewise(SidewiseMovementDirection.LEFT);
+    } else if (moveRight.includes(event.key)) {
+      this.player.goSidewise(SidewiseMovementDirection.RIGHT);
+    } else if (turnLeft.includes(event.key)) {
       this.player.turn(RotationDirection.LEFT);
-    } else if (right.includes(event.key)) {
+    } else if (turnRight.includes(event.key)) {
       this.player.turn(RotationDirection.RIGHT);
     } else if (jump.includes(event.key) && !event.repeat) {
       this.player.jump();
@@ -320,10 +395,19 @@ class PlayerCameraInput implements ICameraInput<TargetCamera> {
   }
 
   private onKeyUp(event: KeyboardEvent) {
-    const { forward, backward, left, right } = this.controlKeys!;
+    const {
+      moveForwardKeys: moveForward,
+      moveBackwardKeys: moveBackward,
+      moveLeftKeys: moveLeft,
+      moveRightKeys: moveRight,
+      turnLeftKeys: left,
+      turnRightKeys: right,
+    } = this.controls;
 
-    if (forward.includes(event.key) || backward.includes(event.key)) {
-      this.player.go(MovementDirection.NONE);
+    if (moveForward.includes(event.key) || moveBackward.includes(event.key)) {
+      this.player.goForward(ForwardMovementDirection.NONE);
+    } else if (moveLeft.includes(event.key) || moveRight.includes(event.key)) {
+      this.player.goSidewise(SidewiseMovementDirection.NONE);
     } else if (left.includes(event.key) || right.includes(event.key)) {
       this.player.turn(RotationDirection.NONE);
     }
