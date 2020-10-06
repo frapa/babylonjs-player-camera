@@ -1,5 +1,33 @@
 # Changelog
 
+All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
+
+### [0.1.3](https://github.com/frapa-az/babylonjs-player-camera/compare/v0.1.1...v0.1.3) (2020-10-06)
+
+
+### Features
+
+* Add ability to orient the camera using the mouse ([521b69a](https://github.com/frapa-az/babylonjs-player-camera/commit/521b69aa6e30c494116a1ec40a4f2d97cdb5af22))
+* Implement sidewise movement with configurable keys ([8d8dc04](https://github.com/frapa-az/babylonjs-player-camera/commit/8d8dc0486e7d99169fb18bb0033bfeea05051177))
+
+
+### Bug Fixes
+
+* Clean-up CHANGELOG ([3676a5d](https://github.com/frapa-az/babylonjs-player-camera/commit/3676a5d4c850a08edc35c0d004ed90907588edf6))
+
+### [0.1.2](https://github.com/frapa-az/babylonjs-player-camera/compare/v0.1.1...v0.1.2) (2020-10-06)
+
+
+### Features
+
+* Add ability to orient the camera using the mouse ([521b69a](https://github.com/frapa-az/babylonjs-player-camera/commit/521b69aa6e30c494116a1ec40a4f2d97cdb5af22))
+* Implement sidewise movement with configurable keys ([8d8dc04](https://github.com/frapa-az/babylonjs-player-camera/commit/8d8dc0486e7d99169fb18bb0033bfeea05051177))
+
+
+### Bug Fixes
+
+* Clean-up CHANGELOG ([3676a5d](https://github.com/frapa-az/babylonjs-player-camera/commit/3676a5d4c850a08edc35c0d004ed90907588edf6))
+
 ## [0.1.0](https://github.com/frapa-az/babylonjs-player-camera/compare/v0.0.2...v0.1.0) (2020-10-05)
 
 ### Features
