@@ -22,6 +22,7 @@ export interface CameraControls {
   turnLeftKeys?: string | Array<string>;
   turnRightKeys?: string | Array<string>;
   jumpKeys?: string | Array<string>;
+  turnWithMouse?: boolean;
 }
 
 const EMPTY_CONTROLS = {
@@ -32,6 +33,7 @@ const EMPTY_CONTROLS = {
   turnLeftKeys: [],
   turnRightKeys: [],
   jumpKeys: [],
+  turnWithMouse: false,
 };
 
 export const FPS_CONTROLS = {
@@ -40,6 +42,7 @@ export const FPS_CONTROLS = {
   moveLeftKeys: ['ArrowLeft', 'a'],
   moveRightKeys: ['ArrowRight', 'd'],
   jumpKeys: [' '],
+  turnWithMouse: true,
 };
 
 export const RACE_CONTROLS = {
@@ -48,12 +51,15 @@ export const RACE_CONTROLS = {
   turnLeftKeys: ['ArrowLeft', 'a'],
   turnRightKeys: ['ArrowRight', 'd'],
   jumpKeys: [' '],
+  turnWithMouse: false,
 };
 
 export interface CameraCallbacks {
   onMove?: Function;
   onTurn?: Function;
   onJump?: Function;
+  onFocus?: Function;
+  onBlur?: Function;
 }
 
 export interface PlayerOptions {
@@ -92,6 +98,7 @@ export class Player {
   speed = 5;
   rotation_speed = 1;
   jump_speed = 5;
+  mouse_sensitivity = 12;
 
   private last?: Date;
   private planar_velocity = Vector2.Zero();
@@ -205,7 +212,6 @@ export class Player {
       );
       picks += (pick && pick.hit && 1) || 0;
     }
-    console.log(picks);
     return picks >= 3;
   }
 
@@ -251,6 +257,10 @@ export class Player {
 
   rotate(angle: number) {
     this.mesh.rotation.addInPlace(Vector3.Down().scale(angle));
+  }
+
+  lookUp(angle: number) {
+    this.mesh.rotation.addInPlace(Vector3.Left().scale(angle));
   }
 
   turn(direction: RotationDirection) {
@@ -354,11 +364,19 @@ class PlayerCameraInput implements ICameraInput<TargetCamera> {
   attachControl(element: HTMLElement, _noPreventDefault?: boolean) {
     element.addEventListener('keydown', this.onKeyDown.bind(this));
     element.addEventListener('keyup', this.onKeyUp.bind(this));
+
+    if (this.controls.turnWithMouse) {
+      element.addEventListener('click', () => {
+        element.requestPointerLock();
+      });
+      element.addEventListener('mousemove', this.onMouseMove.bind(this));
+    }
   }
 
   detachControl(element: HTMLElement) {
     element.removeEventListener('keydown', this.onKeyDown);
     element.removeEventListener('keyup', this.onKeyUp);
+    document.exitPointerLock();
   }
 
   checkInputs() {
@@ -410,6 +428,17 @@ class PlayerCameraInput implements ICameraInput<TargetCamera> {
       this.player.goSidewise(SidewiseMovementDirection.NONE);
     } else if (left.includes(event.key) || right.includes(event.key)) {
       this.player.turn(RotationDirection.NONE);
+    }
+  }
+
+  private onMouseMove(event: MouseEvent) {
+    if (document.pointerLockElement) {
+      this.player.rotate(
+        -0.0001 * this.player.mouse_sensitivity * event.movementX
+      );
+      this.player.lookUp(
+        0.0001 * this.player.mouse_sensitivity * event.movementY
+      );
     }
   }
 }
