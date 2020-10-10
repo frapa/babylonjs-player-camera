@@ -55,11 +55,32 @@ export const RACE_CONTROLS = {
 };
 
 export interface CameraCallbacks {
-  onMove?: Function;
-  onTurn?: Function;
-  onJump?: Function;
-  onFocus?: Function;
-  onBlur?: Function;
+  onMove?: (event: MoveEvent) => void;
+  onMoveChange?: (event: MoveChangeEvent) => void;
+  onTurn?: (event: TurnEvent) => void;
+  onTurnChange?: (event: TurnChangeEvent) => void;
+  onJump?: () => void;
+  onFocus?: () => void;
+  onBlur?: () => void;
+}
+
+export interface MoveEvent {
+  position: Vector3;
+  delta: Vector3;
+}
+
+export interface MoveChangeEvent {
+  forward: ForwardMovementDirection;
+  sidewise: SidewiseMovementDirection;
+}
+
+export interface TurnEvent {
+  rotation: Vector3;
+  delta: Vector3;
+}
+
+export interface TurnChangeEvent {
+  direction: RotationDirection;
 }
 
 export interface PlayerOptions {
@@ -152,7 +173,9 @@ export class Player {
   private configureInputs(options: PlayerOptions = {}) {
     this.camera.parent = this.mesh;
     this.camera.inputs.clear();
-    this.camera.inputs.add(new PlayerCameraInput(this, options.controls));
+    this.camera.inputs.add(
+      new PlayerCameraInput(this, options.controls, options.callbacks)
+    );
     this.camera.attachControl(document.getElementsByTagName('canvas')[0]);
   }
 
@@ -216,7 +239,18 @@ export class Player {
   }
 
   move(displacement: Vector3) {
+    if (Vector3.Dot(displacement, displacement) < 1e-6) return;
+
+    const prevPosition = this.mesh.position.clone();
+
     this.mesh.moveWithCollisions(displacement);
+
+    if (this.callbacks && this.callbacks.onMove) {
+      this.callbacks.onMove({
+        position: this.mesh.position.clone(),
+        delta: this.mesh.position.subtract(prevPosition),
+      });
+    }
   }
 
   moveForward(displacement: number) {
@@ -242,32 +276,60 @@ export class Player {
   goForward(direction: ForwardMovementDirection) {
     this.planar_velocity.x = direction * this.speed;
 
-    if (this.callbacks && this.callbacks.onMove) {
-      this.callbacks.onMove(direction);
+    if (this.callbacks && this.callbacks.onMoveChange) {
+      this.callbacks.onMoveChange({
+        forward: direction,
+        sidewise: SidewiseMovementDirection.NONE,
+      });
     }
   }
 
   goSidewise(direction: SidewiseMovementDirection) {
     this.planar_velocity.y = direction * this.speed;
 
-    if (this.callbacks && this.callbacks.onMove) {
-      this.callbacks.onMove(direction);
+    if (this.callbacks && this.callbacks.onMoveChange) {
+      this.callbacks.onMoveChange({
+        forward: ForwardMovementDirection.NONE,
+        sidewise: direction,
+      });
     }
   }
 
   rotate(angle: number) {
+    if (Math.abs(angle) < 1e-6) return;
+
+    const prevRotation = this.mesh.rotation.clone();
+
     this.mesh.rotation.addInPlace(Vector3.Down().scale(angle));
+
+    if (this.callbacks && this.callbacks.onTurn) {
+      this.callbacks.onTurn({
+        rotation: this.mesh.rotation.clone(),
+        delta: this.mesh.rotation.subtract(prevRotation),
+      });
+    }
   }
 
   lookUp(angle: number) {
+    if (Math.abs(angle) < 1e-6) return;
+
+    const prevRotation = this.mesh.rotation.clone();
+
     this.mesh.rotation.addInPlace(Vector3.Left().scale(angle));
+
+    if (this.callbacks && this.callbacks.onTurn) {
+      this.callbacks.onTurn({
+        rotation: this.mesh.rotation.clone(),
+        delta: this.mesh.rotation.subtract(prevRotation),
+      });
+    }
   }
 
   turn(direction: RotationDirection) {
     this.angular_velocity = direction * this.rotation_speed;
 
-    if (this.callbacks && this.callbacks.onTurn) {
-      this.callbacks.onTurn(direction);
+    if (this.callbacks && this.callbacks.onTurnChange) {
+      this.callbacks.onTurnChange({ direction });
     }
   }
 
@@ -310,10 +372,16 @@ class PlayerCameraInput implements ICameraInput<TargetCamera> {
   player: Player;
 
   private controls?: CameraControls;
+  private readonly callbacks?: CameraCallbacks;
 
-  constructor(player: Player, controls?: CameraControls) {
+  constructor(
+    player: Player,
+    controls?: CameraControls,
+    callbacks?: CameraCallbacks
+  ) {
     this.player = player;
     this.controls = controls;
+    this.callbacks = callbacks;
     this.normalizeControlKeys();
   }
 
@@ -368,6 +436,16 @@ class PlayerCameraInput implements ICameraInput<TargetCamera> {
     if (this.controls.turnWithMouse) {
       element.addEventListener('click', () => {
         element.requestPointerLock();
+
+        if (this.callbacks && this.callbacks.onFocus) {
+          this.callbacks.onFocus();
+        }
+
+        if (this.callbacks && this.callbacks.onBlur) {
+          document.addEventListener('pointerlockchange', () =>
+            this.callbacks.onBlur()
+          );
+        }
       });
       element.addEventListener('mousemove', this.onMouseMove.bind(this));
     }
@@ -394,7 +472,6 @@ class PlayerCameraInput implements ICameraInput<TargetCamera> {
       jumpKeys: jump,
     } = this.controls;
 
-    console.log(moveForward, this.controls);
     if (moveForward.includes(event.key)) {
       this.player.goForward(ForwardMovementDirection.FORWARD);
     } else if (moveBackward.includes(event.key)) {
