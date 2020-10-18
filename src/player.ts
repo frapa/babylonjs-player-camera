@@ -3,6 +3,7 @@ import {
   ICameraInput,
   Mesh,
   MeshBuilder,
+  Quaternion,
   Ray,
   Scene,
   StandardMaterial,
@@ -86,8 +87,9 @@ export interface TurnChangeEvent {
 export interface PlayerOptions {
   mesh?: Mesh;
   position?: Vector3;
+  rotation?: Quaternion;
+  cameraOffset?: Vector3;
   ellipsoid?: Vector3;
-  gravity?: number;
   camera?: TargetCamera;
   controls?: CameraControls;
   callbacks?: CameraCallbacks;
@@ -117,26 +119,24 @@ export class Player {
   mesh: Mesh;
 
   speed = 5;
-  rotation_speed = 1;
-  jump_speed = 5;
-  mouse_sensitivity = 12;
+  rotationSpeed = 1;
+  jumpSpeed = 5;
+  mouseSensitivity = 12;
 
   private last?: Date;
-  private planar_velocity = Vector2.Zero();
-  private vertical_velocity = 0;
-  private angular_velocity = 0;
-  private readonly gravity: number;
+  private planarVelocity = Vector2.Zero();
+  private verticalVelocity = 0;
+  private angularVelocity = 0;
+  private readonly gravity: number = GRAVITY;
 
   private readonly callbacks?: CameraCallbacks;
 
   constructor(scene: Scene, options: PlayerOptions = {}) {
     this.scene = scene;
 
-    this.mesh = options.mesh || this.createPlayerMesh(scene);
-    this.camera = options.camera || this.createCamera(scene);
-    this.configureInputs();
-
-    this.gravity = options.gravity || GRAVITY;
+    this.mesh = options.mesh || this.createPlayerMesh(scene, options);
+    this.camera = options.camera || this.createCamera(scene, options);
+    this.configureInputs(options);
 
     this.callbacks = options.callbacks;
   }
@@ -157,15 +157,26 @@ export class Player {
       options.position ||
       (options.camera && options.camera.position) ||
       new Vector3(0, 1, 0);
+    if (options.rotation) {
+      mesh.rotation = options.rotation.toEulerAngles();
+    }
+
     mesh.ellipsoid = options.ellipsoid || new Vector3(0.5, 0.5, 0.5);
     mesh.checkCollisions = true;
 
     return mesh;
   }
 
-  private createCamera(scene: Scene): TargetCamera {
-    const camera = new UniversalCamera('camera', new Vector3(0, 2, -5), scene);
-    camera.rotation = new Vector3(0.2, 0, 0);
+  private createCamera(
+    scene: Scene,
+    options: PlayerOptions = {}
+  ): TargetCamera {
+    const camera = new UniversalCamera(
+      'camera',
+      options.cameraOffset || Vector3.Zero(),
+      scene
+    );
+    camera.rotation = new Vector3(0, 0, 0);
 
     return camera;
   }
@@ -181,7 +192,7 @@ export class Player {
 
   direction(): Vector3 {
     return Vector3.Forward().rotateByQuaternionToRef(
-      this.mesh.rotation.toQuaternion(),
+      this.camera.rotation.toQuaternion(),
       Vector3.Zero()
     );
   }
@@ -274,7 +285,7 @@ export class Player {
   }
 
   goForward(direction: ForwardMovementDirection) {
-    this.planar_velocity.x = direction * this.speed;
+    this.planarVelocity.x = direction * this.speed;
 
     if (this.callbacks && this.callbacks.onMoveChange) {
       this.callbacks.onMoveChange({
@@ -285,7 +296,7 @@ export class Player {
   }
 
   goSidewise(direction: SidewiseMovementDirection) {
-    this.planar_velocity.y = direction * this.speed;
+    this.planarVelocity.y = direction * this.speed;
 
     if (this.callbacks && this.callbacks.onMoveChange) {
       this.callbacks.onMoveChange({
@@ -298,14 +309,14 @@ export class Player {
   rotate(angle: number) {
     if (Math.abs(angle) < 1e-6) return;
 
-    const prevRotation = this.mesh.rotation.clone();
+    const prevRotation = this.camera.rotation.clone();
 
-    this.mesh.rotation.addInPlace(Vector3.Down().scale(angle));
+    this.camera.rotation.addInPlace(Vector3.Down().scale(angle));
 
     if (this.callbacks && this.callbacks.onTurn) {
       this.callbacks.onTurn({
-        rotation: this.mesh.rotation.clone(),
-        delta: this.mesh.rotation.subtract(prevRotation),
+        rotation: this.camera.rotation.clone(),
+        delta: this.camera.rotation.subtract(prevRotation),
       });
     }
   }
@@ -313,20 +324,20 @@ export class Player {
   lookUp(angle: number) {
     if (Math.abs(angle) < 1e-6) return;
 
-    const prevRotation = this.mesh.rotation.clone();
+    const prevRotation = this.camera.rotation.clone();
 
-    this.mesh.rotation.addInPlace(Vector3.Left().scale(angle));
+    this.camera.rotation.addInPlace(Vector3.Left().scale(angle));
 
     if (this.callbacks && this.callbacks.onTurn) {
       this.callbacks.onTurn({
-        rotation: this.mesh.rotation.clone(),
-        delta: this.mesh.rotation.subtract(prevRotation),
+        rotation: this.camera.rotation.clone(),
+        delta: this.camera.rotation.subtract(prevRotation),
       });
     }
   }
 
   turn(direction: RotationDirection) {
-    this.angular_velocity = direction * this.rotation_speed;
+    this.angularVelocity = direction * this.rotationSpeed;
 
     if (this.callbacks && this.callbacks.onTurnChange) {
       this.callbacks.onTurnChange({ direction });
@@ -335,7 +346,7 @@ export class Player {
 
   jump() {
     if (this.touching()) {
-      this.vertical_velocity += this.jump_speed;
+      this.verticalVelocity += this.jumpSpeed;
 
       if (this.callbacks && this.callbacks.onJump) {
         this.callbacks.onJump();
@@ -344,9 +355,10 @@ export class Player {
   }
 
   private applyGravity(elapsed: number) {
-    this.vertical_velocity += this.gravity * elapsed;
-    if (this.touching()) {
-      this.vertical_velocity = 0;
+    this.verticalVelocity += this.gravity * elapsed;
+    // If we're jumping, do not apply stop on collision with ground
+    if (this.verticalVelocity < 0 && this.touching()) {
+      this.verticalVelocity = 0;
     }
   }
 
@@ -356,9 +368,9 @@ export class Player {
       // @ts-ignore
       const elapsed = (now - this.last) / 1000;
 
-      this.moveOriented(this.planar_velocity.scale(elapsed));
-      this.moveUp(this.vertical_velocity * elapsed);
-      this.rotate(this.angular_velocity * elapsed);
+      this.moveOriented(this.planarVelocity.scale(elapsed));
+      this.moveUp(this.verticalVelocity * elapsed);
+      this.rotate(this.angularVelocity * elapsed);
 
       this.applyGravity(elapsed);
     }
@@ -511,10 +523,10 @@ class PlayerCameraInput implements ICameraInput<TargetCamera> {
   private onMouseMove(event: MouseEvent) {
     if (document.pointerLockElement) {
       this.player.rotate(
-        -0.0001 * this.player.mouse_sensitivity * event.movementX
+        -0.0001 * this.player.mouseSensitivity * event.movementX
       );
       this.player.lookUp(
-        0.0001 * this.player.mouse_sensitivity * event.movementY
+        -0.0001 * this.player.mouseSensitivity * event.movementY
       );
     }
   }

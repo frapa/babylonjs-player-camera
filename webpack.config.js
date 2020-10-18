@@ -4,13 +4,13 @@ module.exports = {
   entry: './src/index.ts',
   output: {
     path: path.resolve(__dirname, 'build'),
-    filename: 'babylonjs-player-camera.js',
+    filename: 'babylonjs-player-camera.js'
   },
   resolve: {
-    extensions: ['.ts', '.tsx', '.js'],
+    extensions: ['.ts', '.tsx', '.js']
   },
   externals: {
-    '@babylonjs/core': 'BABYLON',
+    '@babylonjs/core': 'BABYLON'
   },
   devtool: 'source-map',
   module: {
@@ -18,11 +18,11 @@ module.exports = {
       {
         test: /\.tsx?$/,
         use: 'ts-loader',
-        exclude: /node_modules/,
-      },
-    ],
+        exclude: /node_modules/
+      }
+    ]
   },
   optimization: {
-    minimize: true,
-  },
+    minimize: true
+  }
 };
