@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.1.4](https://github.com/frapa-az/babylonjs-player-camera/compare/v0.1.3...v0.1.4) (2020-10-18)
+
+
+### Bug Fixes
+
+* Improve jumping logic to not get stuck on the ground anymore ([cbd7cfd](https://github.com/frapa-az/babylonjs-player-camera/commit/cbd7cfd0d7863d9186c4214b6754da441c663545))
+
 ### [0.1.3](https://github.com/frapa-az/babylonjs-player-camera/compare/v0.1.1...v0.1.3) (2020-10-06)
 
 
