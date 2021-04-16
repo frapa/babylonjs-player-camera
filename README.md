@@ -13,7 +13,7 @@ import {
 
 // Wherever you need it
 const playerCamera = new PlayerCamera(this.scene, {
-  position: state.self.position,
+  position: new Vector3(0, 0, 0),
   cameraOffset: new Vector3(0, 0.7, 0),
   mesh,
   callbacks: {
